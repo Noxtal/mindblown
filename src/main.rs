@@ -158,7 +158,7 @@ impl Interpreter {
                     println!();
                 }
                 Node::Print => {
-                    print!("{}\n", self.tape[self.cursor] as char);
+                    print!("{}", self.tape[self.cursor] as char);
                 }
                 Node::Loop(nodes) => {
                     while self.tape[self.cursor] != 0 {
