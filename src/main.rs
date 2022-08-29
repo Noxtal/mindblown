@@ -15,7 +15,7 @@ fn main() {
         Some(path) => {
             let contents = fs::read_to_string(path).expect("Could not read specified file/path!");
             let nodes = Parser::parse(&contents);
-            println!("{:?}", nodes);
+            // println!("{:?}", nodes);
             let mut interpreter = Interpreter::new();
             interpreter.interpret(&nodes);
             println!();
@@ -32,7 +32,7 @@ fn main() {
                     break;
                 }
                 let nodes = Parser::parse(&code);
-                println!("{:?}", nodes);
+                // println!("{:?}", nodes);
                 interpreter.interpret(&nodes)
             }
         }
@@ -48,7 +48,6 @@ enum Node {
     Print,
     Loop(Vec<Node>),
     Clear,
-    Move(isize),
     Add(isize)
 }
 
@@ -113,19 +112,6 @@ impl<'a> Parser<'a> {
                         }
 
                         if contents.len() == 4 {
-                            if let (
-                                Node::Edit(e1),
-                                Node::Shift(s1),
-                                Node::Edit(e2),
-                                Node::Shift(s2),
-                            ) = (&contents[0], &contents[1], &contents[2], &contents[3])
-                            {
-                                if e1.abs() == 1 && *e1 == -e2 && *s1 == -s2 {
-                                    nodes.push(Node::Move(*s1));
-                                    continue;
-                                }
-                            }
-
                             if let (
                                 Node::Shift(s1),
                                 Node::Edit(e1),
@@ -197,12 +183,6 @@ impl Interpreter {
                     }
                 }
                 Node::Clear => self.tape[self.cursor] = 0,
-                Node::Move(offset) => {
-                    let cur = self.tape[self.cursor];
-                    self.tape[self.cursor] = 0;
-                    self.shift(offset);
-                    self.tape[self.cursor] = cur;
-                }
                 Node::Add(offset) => {
                     let cur = self.tape[self.cursor];
                     self.shift(offset);
