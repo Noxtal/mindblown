@@ -15,6 +15,7 @@ fn main() {
         Some(path) => {
             let contents = fs::read_to_string(path).expect("Could not read specified file/path!");
             let nodes = Parser::parse(&contents);
+            println!("{:?}", nodes);
             let mut interpreter = Interpreter::new();
             interpreter.interpret(&nodes);
             println!();
@@ -48,6 +49,7 @@ enum Node {
     Loop(Vec<Node>),
     Clear,
     Move(isize),
+    Add(isize)
 }
 
 struct Parser<'a> {
@@ -118,8 +120,21 @@ impl<'a> Parser<'a> {
                                 Node::Shift(s2),
                             ) = (&contents[0], &contents[1], &contents[2], &contents[3])
                             {
-                                if e1.abs() == 1 && e1 == &-e2 && s1 == &-s2 {
+                                if e1.abs() == 1 && *e1 == -e2 && *s1 == -s2 {
                                     nodes.push(Node::Move(*s1));
+                                    continue;
+                                }
+                            }
+
+                            if let (
+                                Node::Shift(s1),
+                                Node::Edit(e1),
+                                Node::Shift(s2),
+                                Node::Edit(e2),
+                            ) = (&contents[0], &contents[1], &contents[2], &contents[3])
+                            {
+                                if e1.abs() == 1 && *e1 == -e2 && *s1 == -s2 {
+                                    nodes.push(Node::Add(*s1));
                                     continue;
                                 }
                             }
@@ -153,12 +168,15 @@ impl Interpreter {
         self.cursor = ((30000 + self.cursor as isize + *offset) % 30000) as usize;
     }
 
+    fn edit(&mut self, amount: &isize) {
+        self.tape[self.cursor] = ((256 + self.tape[self.cursor] as isize + *amount) % 256) as u8;
+    }
+
     fn interpret(&mut self, nodes: &Vec<Node>) {
         for node in nodes {
             match node {
                 Node::Edit(amount) => {
-                    self.tape[self.cursor] =
-                        ((256 + self.tape[self.cursor] as isize + *amount) % 256) as u8;
+                    self.edit(amount);
                 }
                 Node::Shift(amount) => {
                     self.shift(amount);
@@ -184,6 +202,13 @@ impl Interpreter {
                     self.tape[self.cursor] = 0;
                     self.shift(offset);
                     self.tape[self.cursor] = cur;
+                }
+                Node::Add(offset) => {
+                    let cur = self.tape[self.cursor];
+                    self.shift(offset);
+                    self.edit(&(cur as isize));
+                    self.shift(&-offset);
+                    self.tape[self.cursor] = 0;
                 }
             }
         }
