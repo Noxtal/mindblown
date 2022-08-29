@@ -14,12 +14,12 @@ fn main() {
         io::stdout().flush().unwrap();
         let mut code = String::new();
         io::stdin().read_line(&mut code).unwrap();
-        if code.contains("exit") {
+        if code.contains("exit") || code.contains("quit") {
             println!("Goodbye!");
             break;
         }
         let nodes = Parser::parse(&code);
-        // println!("{:?}", nodes);
+        println!("{:?}", nodes);
         interpreter.interpret(&nodes)
     }
 }
@@ -32,6 +32,7 @@ enum Node {
     Scan,
     Print,
     Loop(Vec<Node>),
+    Clear,
 }
 
 struct Parser<'a> {
@@ -85,6 +86,12 @@ impl<'a> Parser<'a> {
                 '[' => {
                     let contents = self._parse();
                     if !contents.is_empty() {
+                        if let Node::Edit(amount) = contents[0] {
+                            if amount.abs() == 1 {
+                                nodes.push(Node::Clear);
+                                continue;
+                            }
+                        }
                         nodes.push(Node::Loop(contents));
                     }
                 }
@@ -114,10 +121,10 @@ impl Interpreter {
             match node {
                 Node::Edit(amount) => {
                     self.tape[self.cursor] =
-                        ((255 + self.tape[self.cursor] as isize + *amount) % 255) as u8;
+                        ((256 + self.tape[self.cursor] as isize + *amount) % 256) as u8;
                 }
                 Node::Shift(amount) => {
-                    self.cursor = ((30000 + self.cursor as isize + *amount) % 30000) as usize;
+                    self.cursor = ((30001 + self.cursor as isize + *amount) % 30001) as usize;
                 }
                 Node::Scan => {
                     print!("({})> ", self.cursor);
@@ -135,6 +142,7 @@ impl Interpreter {
                         self.interpret(&nodes);
                     }
                 }
+                Node::Clear => self.tape[self.cursor] = 0,
             }
         }
     }
