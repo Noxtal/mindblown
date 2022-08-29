@@ -33,6 +33,7 @@ enum Node {
     Print,
     Loop(Vec<Node>),
     Clear,
+    Move(isize),
 }
 
 struct Parser<'a> {
@@ -86,12 +87,30 @@ impl<'a> Parser<'a> {
                 '[' => {
                     let contents = self._parse();
                     if !contents.is_empty() {
-                        if let Node::Edit(amount) = contents[0] {
-                            if amount.abs() == 1 {
-                                nodes.push(Node::Clear);
-                                continue;
+                        if contents.len() == 1 {
+                            if let Node::Edit(amount) = contents[0] {
+                                if amount.abs() == 1 {
+                                    nodes.push(Node::Clear);
+                                    continue;
+                                }
                             }
                         }
+
+                        if contents.len() == 4 {
+                            if let (
+                                Node::Edit(e1),
+                                Node::Shift(s1),
+                                Node::Edit(e2),
+                                Node::Shift(s2),
+                            ) = (&contents[0], &contents[1], &contents[2], &contents[3])
+                            {
+                                if e1.abs() == 1 && e1 == &-e2 && s1 == &-s2 {
+                                    nodes.push(Node::Move(*s1));
+                                    continue;
+                                }
+                            }
+                        }
+
                         nodes.push(Node::Loop(contents));
                     }
                 }
@@ -116,6 +135,10 @@ impl Interpreter {
         }
     }
 
+    fn shift(&mut self, offset: &isize) {
+        self.cursor = ((30001 + self.cursor as isize + *offset) % 30001) as usize;
+    }
+
     fn interpret(&mut self, nodes: &Vec<Node>) {
         for node in nodes {
             match node {
@@ -124,7 +147,7 @@ impl Interpreter {
                         ((256 + self.tape[self.cursor] as isize + *amount) % 256) as u8;
                 }
                 Node::Shift(amount) => {
-                    self.cursor = ((30001 + self.cursor as isize + *amount) % 30001) as usize;
+                    self.shift(amount);
                 }
                 Node::Scan => {
                     print!("({})> ", self.cursor);
@@ -143,6 +166,12 @@ impl Interpreter {
                     }
                 }
                 Node::Clear => self.tape[self.cursor] = 0,
+                Node::Move(offset) => {
+                    let cur = self.tape[self.cursor];
+                    self.tape[self.cursor] = 0;
+                    self.shift(offset);
+                    self.tape[self.cursor] = cur;
+                }
             }
         }
     }
