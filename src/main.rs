@@ -1,26 +1,40 @@
 use std::{
+    env,
     io::{self, Write},
     iter::Peekable,
-    str::Chars,
+    str::Chars, fs,
 };
 
 fn main() {
-    println!("MINDBLOWN {} - BRAINF**K REPL", env!("CARGO_PKG_VERSION"));
+    println!(
+        "MINDBLOWN {} - BRAINF**K INTERPRETER",
+        env!("CARGO_PKG_VERSION")
+    );
 
-    // Read-Eval-Print Loop
-    let mut interpreter = Interpreter::new();
-    loop {
-        print!("mindblown> ");
-        io::stdout().flush().unwrap();
-        let mut code = String::new();
-        io::stdin().read_line(&mut code).unwrap();
-        if code.contains("exit") || code.contains("quit") {
-            println!("Goodbye!");
-            break;
+    match env::args().nth(1) {
+        Some(path) => {
+            let contents = fs::read_to_string(path).expect("Could not read specified file/path!");
+            let nodes = Parser::parse(&contents);
+            let mut interpreter = Interpreter::new();
+            interpreter.interpret(&nodes);
+            println!();
         }
-        let nodes = Parser::parse(&code);
-        println!("{:?}", nodes);
-        interpreter.interpret(&nodes)
+        None => {
+            let mut interpreter = Interpreter::new();
+            loop {
+                print!("mindblown> ");
+                io::stdout().flush().unwrap();
+                let mut code = String::new();
+                io::stdin().read_line(&mut code).unwrap();
+                if code.contains("exit") || code.contains("quit") {
+                    println!("Goodbye!");
+                    break;
+                }
+                let nodes = Parser::parse(&code);
+                println!("{:?}", nodes);
+                interpreter.interpret(&nodes)
+            }
+        }
     }
 }
 
@@ -150,12 +164,11 @@ impl Interpreter {
                     self.shift(amount);
                 }
                 Node::Scan => {
-                    print!("({})> ", self.cursor);
+                    print!("\n({})> ", self.cursor);
                     io::stdout().flush().unwrap();
                     let mut inp = String::new();
                     io::stdin().read_line(&mut inp).unwrap();
                     self.tape[self.cursor] = inp.chars().nth(0).unwrap() as u8;
-                    println!();
                 }
                 Node::Print => {
                     print!("{}", self.tape[self.cursor] as char);
