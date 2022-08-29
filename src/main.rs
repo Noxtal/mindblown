@@ -136,7 +136,7 @@ impl Interpreter {
     }
 
     fn shift(&mut self, offset: &isize) {
-        self.cursor = ((30001 + self.cursor as isize + *offset) % 30001) as usize;
+        self.cursor = ((30000 + self.cursor as isize + *offset) % 30000) as usize;
     }
 
     fn interpret(&mut self, nodes: &Vec<Node>) {
