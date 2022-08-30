@@ -5,6 +5,8 @@ use std::{
     str::Chars, fs,
 };
 
+use snailquote::unescape;
+
 fn main() {
     println!(
         "MINDBLOWN {} - BRAINF**K INTERPRETER",
@@ -15,7 +17,7 @@ fn main() {
         Some(path) => {
             let contents = fs::read_to_string(path).expect("Could not read specified file/path!");
             let nodes = Parser::parse(&contents);
-            // println!("{:?}", nodes);
+            println!("{:?}", nodes);
             let mut interpreter = Interpreter::new();
             interpreter.interpret(&nodes);
             println!();
@@ -172,7 +174,8 @@ impl Interpreter {
                     io::stdout().flush().unwrap();
                     let mut inp = String::new();
                     io::stdin().read_line(&mut inp).unwrap();
-                    self.tape[self.cursor] = inp.chars().nth(0).unwrap() as u8;
+                    self.tape[self.cursor] = unescape(&inp).unwrap().chars().nth(0).unwrap() as u8;
+                    println!("{}", self.tape[self.cursor]);
                 }
                 Node::Print => {
                     print!("{}", self.tape[self.cursor] as char);
