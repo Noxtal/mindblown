@@ -1,15 +1,15 @@
 use std::{
-    env,
+    env, fs,
     io::{self, Write},
     iter::Peekable,
-    str::Chars, fs,
+    str::Chars,
 };
 
 use snailquote::unescape;
 
 fn main() {
     println!(
-        "MINDBLOWN {} - BRAINF**K INTERPRETER",
+        "MINDBLOWN {} - BRAINF**K INTERPRETER/COMPILER",
         env!("CARGO_PKG_VERSION")
     );
 
@@ -18,9 +18,12 @@ fn main() {
             let contents = fs::read_to_string(path).expect("Could not read specified file/path!");
             let nodes = Parser::parse(&contents);
             println!("{:?}", nodes);
-            let mut interpreter = Interpreter::new();
-            interpreter.interpret(&nodes);
             println!();
+            let asm = assemble(&nodes);
+            println!("{}", asm);
+            // let mut interpreter = Interpreter::new();
+            // interpreter.interpret(&nodes);
+            // println!();
         }
         None => {
             let mut interpreter = Interpreter::new();
@@ -50,7 +53,7 @@ enum Node {
     Print,
     Loop(Vec<Node>),
     Clear,
-    Add(isize)
+    Add(isize),
 }
 
 struct Parser<'a> {
@@ -196,4 +199,125 @@ impl Interpreter {
             }
         }
     }
+}
+
+fn assemble(nodes: &Vec<Node>) -> String {
+    format!(
+        "# GNU Assembler, Intel syntax, x86_64 Linux
+
+.data
+
+.equ SYS_EXIT, 60
+.equ SUCCESS, 0
+
+.equ SYS_WRITE, 1
+.equ STDOUT, 1
+
+.equ SYS_READ, 0
+.equ STDIN, 0 
+
+.bss
+
+.lcomm ARRAY, 30000
+
+.text
+
+.global _start
+
+extern ExitProcess
+extern _CRT_INIT
+
+extern printf
+
+_start:
+    mov r12, offset ARRAY
+    call    _CRT_INIT
+{}
+    mov rax, SYS_EXIT
+    mov rdi, SUCCESS
+    syscall",
+        assemble_nodes(nodes)
+    )
+}
+
+fn assemble_nodes(nodes: &Vec<Node>) -> String {
+    let mut asm = String::new();
+    for node in nodes {
+        match node {
+            Node::Edit(amount) => {
+                asm += &format!(
+                    "
+    {} [r12], {}
+            ",
+                    if *amount > 0 { "addb" } else { "subb" },
+                    amount
+                )
+            }
+            Node::Shift(amount) => {
+                asm += &format!(
+                    "
+    {} r12, {}
+            ",
+                    if *amount > 0 { "add" } else { "sub" },
+                    amount
+                )
+            }
+            Node::Scan => {
+                asm += "
+    mov rax, SYS_READ
+    mov rdi, STDIN
+    mov rsi, r12
+    mov rdx, 1
+    syscall
+            "
+            }
+            Node::Print => {
+                asm += "
+    mov rax, SYS_WRITE
+    mov rdi, STDOUT
+    mov rsi, r12
+    mov rdx, 1
+    syscall
+            "
+            }
+            Node::Loop(nodes) => {
+                let body = &assemble_nodes(&nodes);
+                let id = asm.len();
+
+                asm += &format!(
+                    "
+    cmpb [r12], 0
+    je LOOP_END_{}
+    LOOP_START_{}:
+            ",
+                    id, id
+                );
+
+                asm += body;
+
+                asm += &format!(
+                    "
+    cmpb [r12], 0
+    jne LOOP_START_{}
+    LOOP_END_{}:
+            ",
+                    id, id
+                );
+            }
+            Node::Clear => {
+                asm += "
+    movb [r12], 0
+            "
+            }
+            Node::Add(offset) => {
+                asm += &format!(
+                    "
+    movb [r12], [r12 + {}]
+            ",
+                    offset
+                )
+            }
+        };
+    }
+    asm
 }
