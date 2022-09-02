@@ -19,7 +19,7 @@ fn main() {
             let nodes = Parser::parse(&contents);
             println!("{:?}", nodes);
             println!();
-            let asm = assemble(&nodes);
+            let asm = Assembler::assemble(&nodes);
             println!("{}", asm);
             // let mut interpreter = Interpreter::new();
             // interpreter.interpret(&nodes);
@@ -201,122 +201,127 @@ impl Interpreter {
     }
 }
 
-fn assemble(nodes: &Vec<Node>) -> String {
-    format!(
-        "# GNU Assembler, Intel syntax, x86_64 Linux
-
-.data
-
-.equ SYS_EXIT, 60
-.equ SUCCESS, 0
-
-.equ SYS_WRITE, 1
-.equ STDOUT, 1
-
-.equ SYS_READ, 0
-.equ STDIN, 0 
-
-.bss
-
-.lcomm ARRAY, 30000
-
-.text
-
-.global _start
-
-extern ExitProcess
-extern _CRT_INIT
-
-extern printf
-
-_start:
-    mov r12, offset ARRAY
-    call    _CRT_INIT
-{}
-    mov rax, SYS_EXIT
-    mov rdi, SUCCESS
-    syscall",
-        assemble_nodes(nodes)
-    )
+struct Assembler {
+    loop_id: usize,
 }
 
-fn assemble_nodes(nodes: &Vec<Node>) -> String {
-    let mut asm = String::new();
-    for node in nodes {
-        match node {
-            Node::Edit(amount) => {
-                asm += &format!(
-                    "
-    {} [r12], {}
-            ",
-                    if *amount > 0 { "addb" } else { "subb" },
-                    amount
-                )
-            }
-            Node::Shift(amount) => {
-                asm += &format!(
-                    "
-    {} r12, {}
-            ",
-                    if *amount > 0 { "add" } else { "sub" },
-                    amount
-                )
-            }
-            Node::Scan => {
-                asm += "
-    mov rax, SYS_READ
-    mov rdi, STDIN
-    mov rsi, r12
-    mov rdx, 1
-    syscall
-            "
-            }
-            Node::Print => {
-                asm += "
-    mov rax, SYS_WRITE
-    mov rdi, STDOUT
-    mov rsi, r12
-    mov rdx, 1
-    syscall
-            "
-            }
-            Node::Loop(nodes) => {
-                let id = asm.len();
-
-                asm += &format!(
-                    "
-    cmpb [r12], 0
-    je LOOP_END_{}
-    LOOP_START_{}:
-            ",
-                    id, id
-                );
-
-                asm += &assemble_nodes(&nodes);
-
-                asm += &format!(
-                    "
-    cmpb [r12], 0
-    jne LOOP_START_{}
-    LOOP_END_{}:
-            ",
-                    id, id
-                );
-            }
-            Node::Clear => {
-                asm += "
-    movb [r12], 0
-            "
-            }
-            Node::Add(offset) => {
-                asm += &format!(
-                    "
-    movb [r12], [r12 + {}]
-            ",
-                    offset
-                )
-            }
-        };
+impl Assembler {
+    fn new() -> Assembler {
+        Assembler { loop_id: 0 }
     }
-    asm
+
+    fn assemble(nodes: &Vec<Node>) -> String {
+        let mut assembler = Assembler::new();
+        format!(
+            "# GNU Assembler, Intel syntax, x86_64 Linux
+    
+    .data
+    
+    .equ SYS_EXIT, 60
+    .equ SUCCESS, 0
+    
+    .equ SYS_WRITE, 1
+    .equ STDOUT, 1
+    
+    .equ SYS_READ, 0
+    .equ STDIN, 0 
+    
+    .bss
+    
+    .lcomm ARRAY, 30000
+    
+    .text
+    
+    .global _start
+    
+    _start:
+        mov r12, offset ARRAY
+    {}
+        mov rax, SYS_EXIT
+        mov rdi, SUCCESS
+        syscall",
+            assembler._assemble(nodes)
+        )
+    }
+
+    fn _assemble(&mut self, nodes: &Vec<Node>) -> String {
+        let mut asm = String::new();
+        for node in nodes {
+            match node {
+                Node::Edit(amount) => {
+                    asm += &format!(
+                        "
+        {} [r12], {}
+                ",
+                        if *amount > 0 { "addb" } else { "subb" },
+                        amount
+                    )
+                }
+                Node::Shift(amount) => {
+                    asm += &format!(
+                        "
+        {} r12, {}
+                ",
+                        if *amount > 0 { "add" } else { "sub" },
+                        amount
+                    )
+                }
+                Node::Scan => {
+                    asm += "
+        mov rax, SYS_READ
+        mov rdi, STDIN
+        mov rsi, r12
+        mov rdx, 1
+        syscall
+                "
+                }
+                Node::Print => {
+                    asm += "
+        mov rax, SYS_WRITE
+        mov rdi, STDOUT
+        mov rsi, r12
+        mov rdx, 1
+        syscall
+                "
+                }
+                Node::Loop(nodes) => {
+                    self.loop_id += 1;
+
+                    asm += &format!(
+                        "
+        cmpb [r12], 0
+        je LOOP_END_{}
+        LOOP_START_{}:
+                ",
+                        self.loop_id, self.loop_id
+                    );
+
+                    asm += &self._assemble(&nodes);
+
+                    asm += &format!(
+                        "
+        cmpb [r12], 0
+        jne LOOP_START_{}
+        LOOP_END_{}:
+                ",
+                        self.loop_id, self.loop_id
+                    );
+                }
+                Node::Clear => {
+                    asm += "
+        movb [r12], 0
+                "
+                }
+                Node::Add(offset) => {
+                    asm += &format!(
+                        "
+        movb [r12], [r12 + {}]
+                ",
+                        offset
+                    )
+                }
+            };
+        }
+        asm
+    }
 }
