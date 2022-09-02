@@ -281,7 +281,6 @@ fn assemble_nodes(nodes: &Vec<Node>) -> String {
             "
             }
             Node::Loop(nodes) => {
-                let body = &assemble_nodes(&nodes);
                 let id = asm.len();
 
                 asm += &format!(
@@ -293,7 +292,7 @@ fn assemble_nodes(nodes: &Vec<Node>) -> String {
                     id, id
                 );
 
-                asm += body;
+                asm += &assemble_nodes(&nodes);
 
                 asm += &format!(
                     "
