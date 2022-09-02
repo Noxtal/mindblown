@@ -1,7 +1,11 @@
+use rand::{distributions::Alphanumeric, Rng};
 use std::{
-    env, fs,
+    env,
+    fs::{self, File},
     io::{self, Write},
     iter::Peekable,
+    path::Path,
+    process::Command,
     str::Chars,
 };
 
@@ -15,15 +19,42 @@ fn main() {
 
     match env::args().nth(1) {
         Some(path) => {
-            let contents = fs::read_to_string(path).expect("Could not read specified file/path!");
+            let contents = fs::read_to_string(&path).expect("Could not read specified file/path!");
             let nodes = Parser::parse(&contents);
             println!("{:?}", nodes);
             println!();
             let asm = Assembler::assemble(&nodes);
-            println!("{}", asm);
-            // let mut interpreter = Interpreter::new();
-            // interpreter.interpret(&nodes);
-            // println!();
+
+            let mut tempdir = std::env::temp_dir();
+            let mut filename: String = rand::thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(7)
+                .map(char::from)
+                .collect();
+            filename += ".s";
+            tempdir.push(filename);
+
+            File::create(&tempdir)
+                .unwrap()
+                .write_all(asm.as_bytes())
+                .unwrap();
+
+            Command::new("gcc")
+                .arg("-nostdlib")
+                .arg("-Wa,-msyntax=intel,-mnaked-reg")
+                .arg(tempdir.to_str().unwrap())
+                .arg("-o")
+                .arg(
+                    Path::new(&path)
+                        .file_name()
+                        .unwrap()
+                        .to_str()
+                        .unwrap()
+                        .replace(".b", ""),
+                )
+                .output()
+                .expect("GCC failed to start!");
+            println!("File compiled successfully!");
         }
         None => {
             let mut interpreter = Interpreter::new();
@@ -215,31 +246,31 @@ impl Assembler {
         format!(
             "# GNU Assembler, Intel syntax, x86_64 Linux
     
-    .data
-    
-    .equ SYS_EXIT, 60
-    .equ SUCCESS, 0
-    
-    .equ SYS_WRITE, 1
-    .equ STDOUT, 1
-    
-    .equ SYS_READ, 0
-    .equ STDIN, 0 
-    
-    .bss
-    
-    .lcomm ARRAY, 30000
-    
-    .text
-    
-    .global _start
-    
-    _start:
-        mov r12, offset ARRAY
-    {}
-        mov rax, SYS_EXIT
-        mov rdi, SUCCESS
-        syscall",
+.data
+
+.equ SYS_EXIT, 60
+.equ SUCCESS, 0
+
+.equ SYS_WRITE, 1
+.equ STDOUT, 1
+
+.equ SYS_READ, 0
+.equ STDIN, 0 
+
+.bss
+
+.lcomm ARRAY, 30000
+
+.text
+
+.global _start
+
+_start:
+    mov r12, offset ARRAY
+{}
+    mov rax, SYS_EXIT
+    mov rdi, SUCCESS
+    syscall",
             assembler._assemble(nodes)
         )
     }
@@ -251,8 +282,7 @@ impl Assembler {
                 Node::Edit(amount) => {
                     asm += &format!(
                         "
-        {} [r12], {}
-                ",
+    {} [r12], {}",
                         if *amount > 0 { "addb" } else { "subb" },
                         amount
                     )
@@ -260,39 +290,35 @@ impl Assembler {
                 Node::Shift(amount) => {
                     asm += &format!(
                         "
-        {} r12, {}
-                ",
+    {} r12, {}",
                         if *amount > 0 { "add" } else { "sub" },
                         amount
                     )
                 }
                 Node::Scan => {
                     asm += "
-        mov rax, SYS_READ
-        mov rdi, STDIN
-        mov rsi, r12
-        mov rdx, 1
-        syscall
-                "
+    mov rax, SYS_READ
+    mov rdi, STDIN
+    mov rsi, r12
+    mov rdx, 1
+    syscall"
                 }
                 Node::Print => {
                     asm += "
-        mov rax, SYS_WRITE
-        mov rdi, STDOUT
-        mov rsi, r12
-        mov rdx, 1
-        syscall
-                "
+    mov rax, SYS_WRITE
+    mov rdi, STDOUT
+    mov rsi, r12
+    mov rdx, 1
+    syscall"
                 }
                 Node::Loop(nodes) => {
                     self.loop_id += 1;
 
                     asm += &format!(
                         "
-        cmpb [r12], 0
-        je LOOP_END_{}
-        LOOP_START_{}:
-                ",
+    cmpb [r12], 0
+    je LOOP_END_{}
+    LOOP_START_{}:",
                         self.loop_id, self.loop_id
                     );
 
@@ -300,23 +326,20 @@ impl Assembler {
 
                     asm += &format!(
                         "
-        cmpb [r12], 0
-        jne LOOP_START_{}
-        LOOP_END_{}:
-                ",
+    cmpb [r12], 0
+    jne LOOP_START_{}
+    LOOP_END_{}:",
                         self.loop_id, self.loop_id
                     );
                 }
                 Node::Clear => {
                     asm += "
-        movb [r12], 0
-                "
+    movb [r12], 0"
                 }
                 Node::Add(offset) => {
                     asm += &format!(
                         "
-        movb [r12], [r12 + {}]
-                ",
+    movb [r12], [r12 + {}]",
                         offset
                     )
                 }
