@@ -1,7 +1,7 @@
 use rand::{distributions::Alphanumeric, Rng};
 use std::{
     env,
-    fs::{self, File},
+    fs::{self, File, remove_file},
     io::{self, Write},
     iter::Peekable,
     path::Path,
@@ -21,8 +21,6 @@ fn main() {
         Some(path) => {
             let contents = fs::read_to_string(&path).expect("Could not read specified file/path!");
             let nodes = Parser::parse(&contents);
-            println!("{:?}", nodes);
-            println!();
             let asm = Assembler::assemble(&nodes);
 
             let mut tempdir = std::env::temp_dir();
@@ -39,22 +37,30 @@ fn main() {
                 .write_all(asm.as_bytes())
                 .unwrap();
 
-            Command::new("gcc")
-                .arg("-nostdlib")
-                .arg("-Wa,-msyntax=intel,-mnaked-reg")
-                .arg(tempdir.to_str().unwrap())
-                .arg("-o")
-                .arg(
-                    Path::new(&path)
-                        .file_name()
-                        .unwrap()
-                        .to_str()
-                        .unwrap()
-                        .replace(".b", ""),
-                )
-                .output()
-                .expect("GCC failed to start!");
-            println!("File compiled successfully!");
+            let out = Command::new("gcc")
+                    .arg("-nostdlib")
+                    .arg("-Wa,-msyntax=intel,-mnaked-reg")
+                    .arg(tempdir.to_str().unwrap())
+                    .arg("-static")
+                    .arg("-o")
+                    .arg(
+                        Path::new(&path)
+                            .file_name()
+                            .unwrap()
+                            .to_str()
+                            .unwrap()
+                            .replace(".b", ""),
+                    )
+                    .output()
+                    .expect("GCC failed to start, make sure it is installed and in your PATH!");
+
+            if out.stderr.len() == 0 {
+                println!("Compiled successfully!");
+                remove_file(tempdir).expect("Could not delete the temporary assembly...");
+            } else {
+                println!("Compilation failed!");
+                println!("{}", String::from_utf8(out.stderr).unwrap());
+            }
         }
         None => {
             let mut interpreter = Interpreter::new();
@@ -270,7 +276,8 @@ _start:
 {}
     mov rax, SYS_EXIT
     mov rdi, SUCCESS
-    syscall",
+    syscall
+",
             assembler._assemble(nodes)
         )
     }
@@ -284,7 +291,7 @@ _start:
                         "
     {} [r12], {}",
                         if *amount > 0 { "addb" } else { "subb" },
-                        amount
+                        amount.abs()
                     )
                 }
                 Node::Shift(amount) => {
@@ -292,7 +299,7 @@ _start:
                         "
     {} r12, {}",
                         if *amount > 0 { "add" } else { "sub" },
-                        amount
+                        amount.abs()
                     )
                 }
                 Node::Scan => {
@@ -313,23 +320,23 @@ _start:
                 }
                 Node::Loop(nodes) => {
                     self.loop_id += 1;
+                    let id = self.loop_id;
 
                     asm += &format!(
                         "
     cmpb [r12], 0
     je LOOP_END_{}
     LOOP_START_{}:",
-                        self.loop_id, self.loop_id
+                        id, id
                     );
 
                     asm += &self._assemble(&nodes);
-
                     asm += &format!(
                         "
     cmpb [r12], 0
     jne LOOP_START_{}
     LOOP_END_{}:",
-                        self.loop_id, self.loop_id
+                        id, id
                     );
                 }
                 Node::Clear => {
@@ -339,8 +346,10 @@ _start:
                 Node::Add(offset) => {
                     asm += &format!(
                         "
-    movb [r12], [r12 + {}]",
-                        offset
+    movb al, [r12]
+    addb [r12 {}], al
+    movb [r12], 0",
+                        format!("{} {}", if *offset > 0 { "+" } else { "-" }, offset.abs())
                     )
                 }
             };
