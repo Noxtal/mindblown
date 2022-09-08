@@ -1,7 +1,7 @@
 use rand::{distributions::Alphanumeric, Rng};
 use std::{
     env,
-    fs::{self, File, remove_file},
+    fs::{self, remove_file, File},
     io::{self, Write},
     iter::Peekable,
     path::Path,
@@ -21,7 +21,7 @@ fn main() {
         Some(path) => {
             let contents = fs::read_to_string(&path).expect("Could not read specified file/path!");
             let nodes = Parser::parse(&contents);
-            let asm = Assembler::assemble(&nodes);
+            let asm = Compiler::assemble(&nodes);
 
             let mut tempdir = std::env::temp_dir();
             let mut filename: String = rand::thread_rng()
@@ -37,29 +37,53 @@ fn main() {
                 .write_all(asm.as_bytes())
                 .unwrap();
 
-            let out = Command::new("gcc")
-                    .arg("-nostdlib")
-                    .arg("-Wa,-msyntax=intel,-mnaked-reg")
-                    .arg(tempdir.to_str().unwrap())
-                    .arg("-static")
-                    .arg("-o")
-                    .arg(
-                        Path::new(&path)
-                            .file_name()
-                            .unwrap()
-                            .to_str()
-                            .unwrap()
-                            .replace(".b", ""),
-                    )
-                    .output()
-                    .expect("GCC failed to start, make sure it is installed and in your PATH!");
+            let out = if cfg!(target_os = "windows") {
+                let mut wsltempdir = tempdir.to_str().unwrap().replace("\\", "/").replace(":", "");
+                let mut v: Vec<char> = wsltempdir.chars().collect();
+                v[0] = v[0].to_lowercase().nth(0).unwrap();
+                wsltempdir = "/mnt/".to_string() + &v.into_iter().collect::<String>();
+                
+                Command::new("bash")
+                .arg("-c")
+                .arg(format!(
+                    "gcc -nostdlib -Wa,-msyntax=intel,-mnaked-reg {} -static -o \"{}\"",
+                    wsltempdir,
+                    Path::new(&path)
+                        .file_name()
+                        .unwrap()
+                        .to_str()
+                        .unwrap()
+                        .replace(".b", "")
+                ))
+                .output()
+                .expect("Failed to execute WSL bash/GCC: Make sure both are installed and in your PATH!")
+            } else {
+                Command::new("gcc")
+                        .arg("-nostdlib")
+                        .arg("-Wa,-msyntax=intel,-mnaked-reg")
+                        .arg(tempdir.to_str().unwrap())
+                        .arg("-static")
+                        .arg("-o")
+                        .arg(
+                            Path::new(&path)
+                                .file_name()
+                                .unwrap()
+                                .to_str()
+                                .unwrap()
+                                .replace(".b", ""),
+                        )
+                        .output()
+                        .expect("Failed to execute GCC: Make sure it is installed and in your PATH!")
+            };
+
+            remove_file(tempdir).unwrap();
 
             if out.stderr.len() == 0 {
                 println!("Compiled successfully!");
-                remove_file(tempdir).expect("Could not delete the temporary assembly...");
+                println!("{}", String::from_utf8_lossy(&out.stdout));
             } else {
                 println!("Compilation failed!");
-                println!("{}", String::from_utf8(out.stderr).unwrap());
+                println!("{}", String::from_utf8_lossy(&out.stderr));
             }
         }
         None => {
@@ -74,7 +98,6 @@ fn main() {
                     break;
                 }
                 let nodes = Parser::parse(&code);
-                // println!("{:?}", nodes);
                 interpreter.interpret(&nodes)
             }
         }
@@ -238,17 +261,17 @@ impl Interpreter {
     }
 }
 
-struct Assembler {
+struct Compiler {
     loop_id: usize,
 }
 
-impl Assembler {
-    fn new() -> Assembler {
-        Assembler { loop_id: 0 }
+impl Compiler {
+    fn new() -> Compiler {
+        Compiler { loop_id: 0 }
     }
 
     fn assemble(nodes: &Vec<Node>) -> String {
-        let mut assembler = Assembler::new();
+        let mut assembler = Compiler::new();
         format!(
             "# GNU Assembler, Intel syntax, x86_64 Linux
     
