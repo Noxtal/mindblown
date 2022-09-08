@@ -1,5 +1,5 @@
 # mindblown
-A *brainf\*\*k* to *x86 ELF* compiler written in Rust meant for Linux and Windows under WSL. Codegen is made from brainf\*\*k directly to x86 Intel assembly without any IR. Most of the optimization work is done when parsing, so an integrated interpreter can benefit from it too. 
+A `brainf**k` to `x86 ELF` compiler written in Rust meant for Linux and Windows under WSL. Codegen is made from brainf\*\*k directly to x86 Intel assembly without any IR. Most of the optimization work is done when parsing, so an integrated interpreter can benefit from it too. 
 
 This is in a very early state. Stay tuned for more features and optimizations like the ones described in [TODO](#todo).
 
