@@ -42,8 +42,6 @@ $ chmod +x <OUTPUT>
 $ ./<OUTPUT>
 ```
 
-(`<OUTPUT>`, )
-
 > YOU ARE NOW READY TO USE MINDBLOWN! 🎉
 
 
