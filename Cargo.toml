@@ -1,6 +1,7 @@
 [package]
 name = "mindblown"
 version = "0.1.0"
+description = "A brainf**k to x86 ELF compiler written in Rust meant for Linux and Windows under WSL."
 license = "MIT"
 edition = "2021"
 
