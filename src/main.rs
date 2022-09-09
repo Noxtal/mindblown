@@ -11,10 +11,8 @@ mod parser;
 use crate::parser::*;
 
 mod interpreter;
-use crate::interpreter::*;
 
 mod codegen;
-use crate::codegen::*;
 
 fn main() {
     println!(
@@ -33,6 +31,8 @@ fn main() {
 }
 
 fn compile(path: &str) {
+    use crate::codegen::*;
+
     let contents = fs::read_to_string(&path).expect("Could not read specified file/path!");
     let nodes = Parser::parse(&contents);
     let asm = Codegen::generate(&nodes);
@@ -102,6 +102,8 @@ fn compile(path: &str) {
 }
 
 fn repl() {
+    use crate::interpreter::*;
+    
     let mut interpreter = Interpreter::new();
     loop {
         print!("mindblown> ");
