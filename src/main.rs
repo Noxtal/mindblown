@@ -64,6 +64,13 @@ fn main() {
     }
 }
 
+fn windir_to_wsl(windir: &str) -> String {
+    let mut wsl = String::from("/mnt/");
+    wsl.push_str(&windir[0..1].to_lowercase());
+    wsl.push_str(&windir[2..]);
+    wsl.replace("\\", "/")
+}
+
 fn compile(path: &str, output: Option<&String>) -> String {
     use crate::codegen::*;
 
@@ -86,29 +93,24 @@ fn compile(path: &str, output: Option<&String>) -> String {
         .unwrap();
 
     let outpath = match output {
-        Some(o) => o.to_string(),
+        Some(o) => Path::new(o).to_path_buf(),
         None => {
             let mut o = Path::new(&path).to_path_buf();
             o.set_extension("out");
-            o.to_string_lossy().to_string()
+            o
         }
-    };
+    }
+    .to_str()
+    .unwrap()
+    .to_string();
 
     let out = if cfg!(target_os = "windows") {
-        let mut wsltempdir = tempdir
-            .to_str()
-            .unwrap()
-            .replace("\\", "/")
-            .replace(":", "");
-        let mut v: Vec<char> = wsltempdir.chars().collect();
-        v[0] = v[0].to_lowercase().nth(0).unwrap();
-        wsltempdir = "/mnt/".to_string() + &v.into_iter().collect::<String>();
-
         Command::new("bash")
             .arg("-c")
             .arg(format!(
                 "gcc -nostdlib -Wa,-msyntax=intel,-mnaked-reg {} -static -o \"{}\"",
-                wsltempdir, &outpath
+                windir_to_wsl(tempdir.to_str().unwrap()),
+                &outpath
             ))
             .output()
             .expect(
@@ -136,14 +138,19 @@ fn compile(path: &str, output: Option<&String>) -> String {
         println!("{}", String::from_utf8_lossy(&out.stderr));
     }
 
-    outpath.to_string()
+    outpath
 }
 
 fn run(path: String) -> Output {
+    let path = dunce::canonicalize(path)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
     if cfg!(target_os = "windows") {
         Command::new("bash")
             .arg("-c")
-            .arg(path)
+            .arg(windir_to_wsl(&path))
             .output()
             .expect("Failed to run compiled file.")
     } else {

@@ -1,6 +1,6 @@
 [package]
 name = "mindblown"
-version = "0.3.0"
+version = "0.3.1"
 description = "Brainfuck to x86 ELF compiler with batteries included."
 license = "MIT"
 edition = "2021"
@@ -9,6 +9,7 @@ edition = "2021"
 clap = { version = "3.2.20", features = ["cargo"] }
 snailquote = "0.3.1"
 rand = "0.8.5"
+dunce = "1.0.2"
 
 [profile.release]
 lto = true
