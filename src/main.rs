@@ -4,8 +4,10 @@ use std::{
     fs::{self, remove_file, File},
     io::{self, Write},
     path::Path,
-    process::Command,
+    process::{Command, Output},
 };
+
+use clap::{arg, command, Command as ClapCommand};
 
 mod parser;
 use crate::parser::*;
@@ -15,22 +17,54 @@ mod interpreter;
 mod codegen;
 
 fn main() {
-    println!(
-        "MINDBLOWN {} - BRAINF**K INTERPRETER/COMPILER",
-        env!("CARGO_PKG_VERSION")
-    );
+    let matches = command!()
+        .subcommand(
+            ClapCommand::new("compile")
+                .about("Compiles a Brainfuck file.")
+                .arg(
+                    arg!(<FILE>)
+                        .help("The Brainfuck file to compile.")
+                        .required(true),
+                )
+                .arg(
+                    arg!([OUTPUT])
+                        .short('o')
+                        .long("output")
+                        .help("The output file.")
+                        .takes_value(true),
+                )
+                .arg(
+                    arg!([RUN])
+                        .short('r')
+                        .long("run")
+                        .help("Run the compiled executable after compiling.")
+                        .takes_value(false),
+                ),
+        )
+        .get_matches();
 
-    match env::args().nth(1) {
-        Some(path) => {
-            compile(&path);
+    match matches.subcommand() {
+        Some(("compile", sub_matches)) => {
+            if let Some(path) = sub_matches.get_one::<String>("FILE") {
+                let outfile = compile(&path, sub_matches.get_one("OUTPUT"));
+                if sub_matches.is_present("RUN") {
+                    let out = run(outfile);
+
+                    if out.stderr.len() == 0 {
+                        println!("{}", String::from_utf8_lossy(&out.stdout));
+                        println!("[mindblown] Ran successfully!");
+                    } else {
+                        println!("{}", String::from_utf8_lossy(&out.stderr));
+                        println!("[mindblown] Ran with errors! (exit code: {})", out.status);
+                    }
+                }
+            }
         }
-        None => {
-            repl();
-        }
+        _ => repl(),
     }
 }
 
-fn compile(path: &str) {
+fn compile(path: &str, output: Option<&String>) -> String {
     use crate::codegen::*;
 
     let contents = fs::read_to_string(&path).expect("Could not read specified file/path!");
@@ -51,59 +85,77 @@ fn compile(path: &str) {
         .write_all(asm.as_bytes())
         .unwrap();
 
+    let outpath = match output {
+        Some(o) => o.to_string(),
+        None => {
+            let mut o = Path::new(&path).to_path_buf();
+            o.set_extension("out");
+            o.to_string_lossy().to_string()
+        }
+    };
+
     let out = if cfg!(target_os = "windows") {
-        let mut wsltempdir = tempdir.to_str().unwrap().replace("\\", "/").replace(":", "");
+        let mut wsltempdir = tempdir
+            .to_str()
+            .unwrap()
+            .replace("\\", "/")
+            .replace(":", "");
         let mut v: Vec<char> = wsltempdir.chars().collect();
         v[0] = v[0].to_lowercase().nth(0).unwrap();
         wsltempdir = "/mnt/".to_string() + &v.into_iter().collect::<String>();
-        
+
         Command::new("bash")
-        .arg("-c")
-        .arg(format!(
-            "gcc -nostdlib -Wa,-msyntax=intel,-mnaked-reg {} -static -o \"{}\"",
-            wsltempdir,
-            Path::new(&path)
-                .file_name()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .replace(".b", "")
-        ))
-        .output()
-        .expect("Failed to execute WSL bash/GCC: Make sure both are installed and in your PATH!")
+            .arg("-c")
+            .arg(format!(
+                "gcc -nostdlib -Wa,-msyntax=intel,-mnaked-reg {} -static -o \"{}\"",
+                wsltempdir, &outpath
+            ))
+            .output()
+            .expect(
+                "Failed to execute WSL bash/GCC: Make sure both are installed and in your PATH!",
+            )
     } else {
         Command::new("gcc")
-                .arg("-nostdlib")
-                .arg("-Wa,-msyntax=intel,-mnaked-reg")
-                .arg(tempdir.to_str().unwrap())
-                .arg("-static")
-                .arg("-o")
-                .arg(
-                    Path::new(&path)
-                        .file_name()
-                        .unwrap()
-                        .to_str()
-                        .unwrap()
-                        .replace(".b", ""),
-                )
-                .output()
-                .expect("Failed to execute GCC: Make sure it is installed and in your PATH!")
+            .arg("-nostdlib")
+            .arg("-Wa,-msyntax=intel,-mnaked-reg")
+            .arg(tempdir.to_str().unwrap())
+            .arg("-static")
+            .arg("-o")
+            .arg(&outpath)
+            .output()
+            .expect("Failed to execute GCC: Make sure it is installed and in your PATH!")
     };
 
     remove_file(tempdir).unwrap();
 
     if out.stderr.len() == 0 {
-        println!("Compiled successfully!");
+        println!("[mindblown] Compiled successfully!");
         println!("{}", String::from_utf8_lossy(&out.stdout));
     } else {
-        println!("Compilation failed!");
+        println!("[mindblown] Compilation failed!");
         println!("{}", String::from_utf8_lossy(&out.stderr));
+    }
+
+    outpath.to_string()
+}
+
+fn run(path: String) -> Output {
+    if cfg!(target_os = "windows") {
+        Command::new("bash")
+            .arg("-c")
+            .arg(path)
+            .output()
+            .expect("Failed to run compiled file.")
+    } else {
+        Command::new(path)
+            .output()
+            .expect("Failed to run compiled file.")
     }
 }
 
 fn repl() {
     use crate::interpreter::*;
-    
+
     let mut interpreter = Interpreter::new();
     loop {
         print!("mindblown> ");
