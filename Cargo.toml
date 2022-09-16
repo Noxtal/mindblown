@@ -10,6 +10,7 @@ clap = { version = "3.2.20", features = ["cargo"] }
 snailquote = "0.3.1"
 rand = "0.8.5"
 dunce = "1.0.2"
+subprocess = "0.2.9"
 
 [profile.release]
 lto = true

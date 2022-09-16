@@ -4,8 +4,9 @@ use std::{
     fs::{self, remove_file, File},
     io::{self, Write},
     path::Path,
-    process::{Command, Output},
+    process::{Command, Stdio},
 };
+use subprocess::{Popen, PopenConfig};
 
 use clap::{arg, command, Command as ClapCommand};
 
@@ -48,19 +49,20 @@ fn main() {
             if let Some(path) = sub_matches.get_one::<String>("FILE") {
                 let outfile = compile(&path, sub_matches.get_one("OUTPUT"));
                 if sub_matches.is_present("RUN") {
-                    let out = run(outfile);
-
-                    if out.stderr.len() == 0 {
-                        println!("{}", String::from_utf8_lossy(&out.stdout));
-                        println!("[mindblown] Ran successfully!");
-                    } else {
-                        println!("{}", String::from_utf8_lossy(&out.stderr));
-                        println!("[mindblown] Ran with errors! (exit code: {})", out.status);
-                    }
+                    run(outfile);
                 }
             }
         }
         _ => repl(),
+    }
+
+    if cfg!(windows) {
+        Command::new("wsl")
+            .arg("--shutdown")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
     }
 }
 
@@ -141,23 +143,31 @@ fn compile(path: &str, output: Option<&String>) -> String {
     outpath
 }
 
-fn run(path: String) -> Output {
+fn run(path: String) {
+    let windows = cfg!(target_os = "windows");
+
     let path = dunce::canonicalize(path)
         .unwrap()
         .to_str()
         .unwrap()
         .to_string();
-    if cfg!(target_os = "windows") {
-        Command::new("bash")
-            .arg("-c")
-            .arg(windir_to_wsl(&path))
-            .output()
-            .expect("Failed to run compiled file.")
+
+    if windows {
+        Popen::create(
+            &["bash", "-c", &windir_to_wsl(&path)],
+            PopenConfig {
+                ..Default::default()
+            },
+        )
     } else {
-        Command::new(path)
-            .output()
-            .expect("Failed to run compiled file.")
+        Popen::create(
+            &[path],
+            PopenConfig {
+                ..Default::default()
+            },
+        )
     }
+    .unwrap();
 }
 
 fn repl() {
