@@ -1,6 +1,6 @@
 [package]
 name = "mindblown"
-version = "0.3.1"
+version = "0.3.2"
 description = "Brainfuck to x86 ELF compiler with batteries included."
 license = "MIT"
 edition = "2021"
