@@ -36,7 +36,7 @@ $ cargo build --release
 
 ## Usage
 ```sh
-mindblown 0.3.0
+mindblown 0.4.0
 Brainfuck to x86 ELF compiler with batteries included.
 
 USAGE:
