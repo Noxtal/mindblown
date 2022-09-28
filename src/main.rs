@@ -17,6 +17,8 @@ mod interpreter;
 
 mod codegen;
 
+mod errors;
+
 fn main() {
     let matches = command!()
         .subcommand(
@@ -76,7 +78,12 @@ fn windir_to_wsl(windir: &str) -> String {
 fn compile(path: &str, output: Option<&String>) -> String {
     use crate::codegen::*;
 
-    let contents = fs::read_to_string(&path).expect("Could not read specified file/path!");
+    let contents = fs::read_to_string(&path);
+    if contents.is_err() {
+        errors::file_not_found(path);
+    }
+    let contents = contents.unwrap();
+
     let nodes = Parser::parse(&contents);
     let asm = Codegen::generate(&nodes);
 
@@ -115,9 +122,6 @@ fn compile(path: &str, output: Option<&String>) -> String {
                 &outpath
             ))
             .output()
-            .expect(
-                "Failed to execute WSL bash/GCC: Make sure both are installed and in your PATH!",
-            )
     } else {
         Command::new("gcc")
             .arg("-nostdlib")
@@ -127,8 +131,16 @@ fn compile(path: &str, output: Option<&String>) -> String {
             .arg("-o")
             .arg(&outpath)
             .output()
-            .expect("Failed to execute GCC: Make sure it is installed and in your PATH!")
     };
+
+    if out.is_err() {
+        if cfg!(target_os = "windows") {
+            errors::program_failure("GCC and/or WSL");
+        } else {
+            errors::program_failure("GCC");
+        }
+    }
+    let out = out.unwrap();
 
     remove_file(tempdir).unwrap();
 

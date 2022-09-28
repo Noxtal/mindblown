@@ -1,6 +1,6 @@
 [package]
 name = "mindblown"
-version = "0.3.2"
+version = "0.4.0"
 description = "Brainfuck to x86 ELF compiler with batteries included."
 license = "MIT"
 edition = "2021"
@@ -11,8 +11,8 @@ snailquote = "0.3.1"
 rand = "0.8.5"
 dunce = "1.0.2"
 subprocess = "0.2.9"
+colored = "2.0.0"
 
 [profile.release]
 lto = true
-panic = "abort"
 opt-level = 2

@@ -1,5 +1,7 @@
 use std::{iter::Peekable, str::Chars};
 
+use crate::errors;
+
 #[derive(Debug)]
 
 pub enum Node {
@@ -18,6 +20,10 @@ pub struct Parser<'a> {
 
 impl<'a> Parser<'a> {
     pub fn parse(input: &'a String) -> Vec<Node> {
+        if input.matches('[').count() != input.matches(']').count() {
+            errors::unbalanced_brackets();
+        }
+
         let mut parser = Parser {
             iterator: input.chars().peekable(),
         };

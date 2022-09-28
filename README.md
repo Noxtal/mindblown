@@ -80,6 +80,6 @@ OPTIONS:
 ## TODO
 - [x] Make the interpreter take in newlines
 - [x] Add various CLI features such as choosing the output file, etc.
-- [ ] Implement clearer and smarter error handling
+- [x] Implement clearer and smarter error handling
 - [ ] Optimize loop handling to Assembly
 - [ ] Allow for more optimization
