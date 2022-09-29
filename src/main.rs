@@ -207,6 +207,7 @@ fn repl() {
             break;
         }
         let nodes = Parser::parse(&code);
-        interpreter.interpret(&nodes)
+        interpreter.interpret(&nodes);
+        println!();
     }
 }
